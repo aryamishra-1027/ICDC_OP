@@ -318,7 +318,7 @@
             { text: "Round 6 (FINALE): Two 4Ω resistors are in parallel. What is the equivalent resistance? (Ω)", answer: 2 }
         ];
 
-        // --- SECRET HOST TOGGLE (Manual override just in case) ---
+        // --- SECRET HOST TOGGLE (Manual override) ---
         document.addEventListener('keydown', (e) => {
             if (e.shiftKey && e.key.toLowerCase() === 'h') {
                 isHost = !isHost;
@@ -339,14 +339,11 @@
                 elStatus.classList.remove('animate-pulse');
                 setTimeout(() => elStatus.style.opacity = '0.5', 2000);
 
-                // --- NEW: AUTOMATIC HOST BYPASS ---
-                // If the URL contains "?host=true", instantly skip to the lobby and show controls!
+                // --- AUTOMATIC HOST BYPASS ---
                 if (window.location.href.includes('?host')) {
                     isHost = true;
-                    playerName = "MAINFRAME_HOST"; // Host doesn't need to join the database
+                    playerName = "MAINFRAME_HOST"; 
                     hostControls.classList.remove('hidden');
-                    
-                    // Start listening to the game, which automatically switches the screen to the Lobby!
                     listenToGameState();
                     listenToPlayers();
                 }
@@ -397,7 +394,7 @@
                 listenToPlayers();
             } catch(err) {
                 console.error("Failed to join database", err);
-                showError(joinError, "DB ERROR - CHECK FIREBASE RULES");
+                showError(joinError, "DB ERROR");
                 btnJoin.innerText = "Join Network";
                 btnJoin.disabled = false;
             }
@@ -416,6 +413,12 @@
                 pDiv.className = "bg-gray-800/80 border border-gray-600 px-4 py-2 rounded text-white font-orbitron text-sm md:text-base flex items-center gap-2 transition-all";
                 if(p.name === playerName) pDiv.classList.add('border-neon-cyan', 'text-neon-cyan', 'shadow-[0_0_10px_rgba(0,243,255,0.3)]'); 
                 
+                // --- THE RESTORED CODE: Adds the name text to the div ---
+                const nameSpan = document.createElement('span');
+                nameSpan.innerText = p.name;
+                pDiv.appendChild(nameSpan);
+                // --------------------------------------------------------
+
                 if (isHost) {
                     const delBtn = document.createElement('button');
                     delBtn.innerHTML = '&times;';
@@ -428,7 +431,6 @@
                 elPlayerList.appendChild(pDiv);
             });
             
-            // Boot out the player if the host deleted them, BUT ignore the host themselves
             if (playerName && playerName !== "MAINFRAME_HOST" && !playerStillExists && activePlayers.length >= 0 && !isHost) {
                  alert("You have been eliminated from the session!");
                  window.location.reload();
@@ -572,7 +574,6 @@
             }, 50);
         }
 
-        // --- HOST CONTROLS LOGIC ---
         async function queueRound(index) {
             try {
                 await setDoc(getGameStateRef(), {
