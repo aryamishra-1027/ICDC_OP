@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Circuit Scramble - Multiplayer</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        orbitron: ['Orbitron', 'sans-serif'],
+                        rajdhani: ['Rajdhani', 'sans-serif'],
+                    },
+                    colors: {
+                        neon: {
+                            cyan: '#00f3ff',
+                            pink: '#ff00ff',
+                            green: '#00ff66',
+                            yellow: '#ffcc00',
+                            red: '#ff003c'
+                        },
+                        dark: {
+                            bg: '#050508',
+                            panel: '#0a0a12'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #050508;
+            background-image: 
+                linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+            color: white;
+            overflow: hidden;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .text-glow-cyan { text-shadow: 0 0 10px rgba(0, 243, 255, 0.7), 0 0 20px rgba(0, 243, 255, 0.5); }
+        .text-glow-red { text-shadow: 0 0 15px rgba(255, 0, 60, 0.8), 0 0 30px rgba(255, 0, 60, 0.6); }
+        .text-glow-green { text-shadow: 0 0 10px rgba(0, 255, 102, 0.7), 0 0 20px rgba(0, 255, 102, 0.5); }
+        .text-glow-yellow { text-shadow: 0 0 10px rgba(255, 204, 0, 0.7), 0 0 20px rgba(255, 204, 0, 0.5); }
+        .text-glow-pink { text-shadow: 0 0 10px rgba(255, 0, 255, 0.7), 0 0 20px rgba(255, 0, 255, 0.5); }
+
+        .box-glow {
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.15), inset 0 0 15px rgba(0, 243, 255, 0.05);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            background: rgba(10, 10, 18, 0.85);
+            backdrop-filter: blur(10px);
+        }
+
+        .input-cyber {
+            background: rgba(5, 5, 8, 0.8);
+            border: 2px solid #00f3ff;
+            color: white;
+            box-shadow: 0 0 10px rgba(0,243,255,0.2);
+            transition: all 0.3s ease;
+        }
+        .input-cyber:focus {
+            outline: none;
+            border-color: #00ff66;
+            box-shadow: 0 0 15px rgba(0,255,102,0.5);
+        }
+
+        .btn-cyber {
+            background: linear-gradient(45deg, transparent 5%, #00f3ff 5%);
+            color: #050508;
+            box-shadow: 4px 0px 0px #00a8b3;
+            transition: all 0.1s ease;
+            position: relative;
+        }
+        .btn-cyber:active {
+            box-shadow: 1px 0px 0px #00a8b3;
+            transform: translateX(3px);
+        }
+
+        @keyframes pulse-danger {
+            0% { transform: scale(1); color: #ff003c; text-shadow: 0 0 20px rgba(255, 0, 60, 0.8); }
+            50% { transform: scale(1.1); color: #ff3366; text-shadow: 0 0 40px rgba(255, 0, 60, 1); }
+            100% { transform: scale(1); color: #ff003c; text-shadow: 0 0 20px rgba(255, 0, 60, 0.8); }
+        }
+        .timer-danger { animation: pulse-danger 0.5s infinite; }
+
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+        }
+        .scanline-effect {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 10px;
+            background: rgba(0, 243, 255, 0.15);
+            opacity: 0.5;
+            animation: scanline 6s linear infinite;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .fade-enter { opacity: 0; transform: scale(0.95); transition: all 0.4s ease-out; }
+        .fade-enter-active { opacity: 1; transform: scale(1); }
+        
+        .view-section {
+            display: none;
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .view-section.active { display: flex; }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-center font-rajdhani relative px-4">
+    <div class="scanline-effect"></div>
+
+    <div class="w-full max-w-4xl flex flex-col items-center z-10">
+        
+        <!-- Header -->
+        <header class="mb-6 md:mb-10 text-center w-full">
+            <h1 class="text-3xl md:text-5xl font-orbitron font-bold text-neon-cyan tracking-widest text-glow-cyan uppercase">
+                Circuit Scramble
+            </h1>
+            <div class="h-1 w-full bg-neon-cyan mt-3 opacity-50 relative">
+                <div class="absolute inset-0 bg-neon-cyan blur-sm"></div>
+            </div>
+            <div id="connection-status" class="text-sm md:text-lg text-neon-yellow mt-2 font-orbitron tracking-widest text-glow-yellow animate-pulse">
+                CONNECTING TO MAINFRAME...
+            </div>
+        </header>
+
+        <main class="w-full bg-dark-panel box-glow rounded-xl p-6 md:p-12 flex flex-col items-center justify-center min-h-[50vh] relative">
+            
+            <!-- VIEW 1: JOIN -->
+            <div id="view-join" class="view-section active">
+                <h2 class="text-3xl md:text-4xl font-bold mb-8 text-glow-cyan text-center uppercase tracking-wide">
+                    Identify Yourself
+                </h2>
+                <input type="text" id="input-player-name" placeholder="Enter Name..." maxlength="15"
+                       class="input-cyber w-full max-w-sm p-4 text-2xl font-orbitron rounded-lg text-center mb-4 placeholder-gray-600">
+                
+                <div id="join-error" class="h-6 text-neon-red font-orbitron font-bold text-glow-red opacity-0 transition-opacity mb-4">
+                    Name Required
+                </div>
+
+                <button id="btn-join" class="btn-cyber font-orbitron font-bold text-xl md:text-2xl py-3 px-10 uppercase tracking-wider">
+                    Join Network
+                </button>
+            </div>
+
+            <!-- VIEW 2: WAITING FOR HOST (STANDBY / LOBBY) -->
+            <div id="view-waiting" class="view-section w-full">
+                <h2 class="text-4xl md:text-6xl font-bold mb-2 text-neon-pink text-glow-pink text-center uppercase tracking-wide animate-pulse">
+                    STANDBY: ROUND <span id="standby-round-num">1</span>
+                </h2>
+                <div class="text-xl md:text-2xl text-gray-400 font-orbitron tracking-widest text-center mb-8">
+                    Waiting for Host to Authorize Question...
+                </div>
+
+                <!-- LOBBY PARTICIPANTS BOARD -->
+                <div class="w-full bg-black/40 border border-neon-cyan/20 rounded-lg p-4 md:p-6 min-h-[150px] max-h-[35vh] overflow-y-auto box-glow">
+                    <h3 class="text-neon-cyan font-orbitron mb-4 text-center tracking-widest text-lg border-b border-neon-cyan/20 pb-2">
+                        ACTIVE TARGETS (<span id="player-count">0</span>)
+                    </h3>
+                    <div id="player-list" class="flex flex-wrap justify-center gap-3">
+                        <!-- Participants generate here dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW 3: QUESTION (PLAYING) -->
+            <div id="view-question" class="view-section">
+                <div class="flex justify-between w-full max-w-2xl mb-4">
+                    <div class="text-neon-yellow font-orbitron tracking-widest uppercase text-sm md:text-base">Target: <span id="display-player-name" class="text-white"></span></div>
+                    <div class="text-neon-pink font-orbitron tracking-widest uppercase text-sm md:text-base">Round: <span id="display-round-num" class="text-white">1/6</span></div>
+                </div>
+                
+                <h2 id="display-question" class="text-2xl md:text-4xl lg:text-5xl font-bold leading-tight mb-8 text-glow-cyan text-center max-w-2xl">
+                    Loading circuit parameters...
+                </h2>
+                
+                <div class="flex flex-col items-center w-full max-w-sm">
+                    <input type="number" id="input-answer" min="2" max="7" placeholder="Value (2-7)" 
+                           class="input-cyber w-full p-4 text-3xl font-orbitron rounded-lg text-center mb-4 placeholder-gray-600">
+                    
+                    <div id="answer-error" class="h-6 text-neon-red font-orbitron font-bold text-glow-red opacity-0 transition-opacity mb-4 text-center">
+                        Incorrect Value
+                    </div>
+
+                    <button id="btn-submit" class="btn-cyber font-orbitron font-bold text-xl md:text-3xl py-4 px-12 w-full uppercase tracking-wider">
+                        Transmit
+                    </button>
+                </div>
+            </div>
+
+            <!-- VIEW 4: TIMER (RESOLVED) -->
+            <div id="view-timer" class="view-section fade-enter">
+                <div class="mb-2 text-center w-full">
+                    <p class="text-xl md:text-3xl text-neon-green text-glow-green font-orbitron mb-2 uppercase tracking-widest">
+                        Circuit Broken By:
+                    </p>
+                    <p id="solver-name" class="text-4xl md:text-6xl text-white text-glow-cyan font-bold font-orbitron mb-6 truncate w-full px-4">
+                        PLAYER
+                    </p>
+                    
+                    <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-4 inline-block mb-4">
+                        <p class="text-xl md:text-2xl text-gray-400 uppercase tracking-widest mb-1">Form groups of</p>
+                        <div id="answer-value" class="text-7xl md:text-9xl font-orbitron font-black text-neon-cyan text-glow-cyan leading-none">
+                            4
+                        </div>
+                    </div>
+                </div>
+
+                <div id="countdown-timer" class="text-8xl md:text-[12rem] font-orbitron font-bold text-neon-green text-glow-green leading-none mt-2 transition-colors duration-300">
+                    10.0
+                </div>
+
+                <div id="times-up-msg" class="hidden text-5xl md:text-8xl font-orbitron font-black text-neon-red text-glow-red uppercase mt-6 text-center">
+                    SCRAMBLE!
+                </div>
+            </div>
+
+        </main>
+
+        <!-- HOST CONTROLS PANEL (Hidden by Default!) -->
+        <div id="host-controls" class="hidden fixed bottom-4 right-4 flex gap-2 z-50 flex-wrap justify-end max-w-full">
+            <div class="bg-black/80 px-3 py-2 border border-neon-red text-neon-red font-orbitron text-xs flex items-center rounded mr-2">HOST MODE ACTIVE</div>
+            <button id="btn-queue-prev" class="text-gray-600 hover:text-neon-pink transition-colors font-orbitron text-xs md:text-sm cursor-pointer border border-gray-800 bg-black/80 px-3 py-2 rounded">
+                [ < Prev ]
+            </button>
+            <button id="btn-queue-next" class="text-gray-600 hover:text-neon-yellow transition-colors font-orbitron text-xs md:text-sm cursor-pointer border border-gray-800 bg-black/80 px-3 py-2 rounded">
+                [ Queue Next ]
+            </button>
+            <button id="btn-start-round" class="text-neon-green hover:text-white transition-colors font-orbitron font-bold text-xs md:text-sm cursor-pointer border border-neon-green bg-black/80 px-4 py-2 rounded shadow-[0_0_10px_rgba(0,255,102,0.3)]">
+                [ START QUESTION ]
+            </button>
+        </div>
+    </div>
+
+    <!-- FIREBASE SCRIPT -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // YOUR EXACT FIREBASE KEYS
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAd-uhHQbAdFCzdcIaVELXbslUFjx2FbA",
+            authDomain: "icdc-circuits-session.firebaseapp.com",
+            projectId: "icdc-circuits-session",
+            storageBucket: "icdc-circuits-session.firebasestorage.app",
+            messagingSenderId: "387694421817",
+            appId: "1:387694421817:web:822433625ed70788f16ae8",
+            measurementId: "G-G11RLECCVN"
+        };
+
+        // DOM Elements
+        const views = {
+            join: document.getElementById('view-join'),
+            waiting: document.getElementById('view-waiting'),
+            question: document.getElementById('view-question'),
+            timer: document.getElementById('view-timer')
+        };
+        
+        const elStatus = document.getElementById('connection-status');
+        const inputPlayerName = document.getElementById('input-player-name');
+        const btnJoin = document.getElementById('btn-join');
+        const joinError = document.getElementById('join-error');
+        
+        const displayPlayerName = document.getElementById('display-player-name');
+        const displayRoundNum = document.getElementById('display-round-num');
+        const displayStandbyRound = document.getElementById('standby-round-num');
+        const displayQuestion = document.getElementById('display-question');
+        const inputAnswer = document.getElementById('input-answer');
+        const btnSubmit = document.getElementById('btn-submit');
+        const answerError = document.getElementById('answer-error');
+        
+        const elSolverName = document.getElementById('solver-name');
+        const elAnswerValue = document.getElementById('answer-value');
+        const elTimer = document.getElementById('countdown-timer');
+        const elTimesUp = document.getElementById('times-up-msg');
+        
+        // Lobby & Host Elements
+        const elPlayerList = document.getElementById('player-list');
+        const elPlayerCount = document.getElementById('player-count');
+        const hostControls = document.getElementById('host-controls');
+        const btnQueuePrev = document.getElementById('btn-queue-prev');
+        const btnQueueNext = document.getElementById('btn-queue-next');
+        const btnStartRound = document.getElementById('btn-start-round');
+
+        // Game State Variables
+        let playerName = "";
+        let db = null;
+        let gameUnsubscribe = null;
+        let playersUnsubscribe = null;
+        let timerInterval = null;
+        let currentRoundIndex = 0;
+        let isHost = false;
+        let activePlayers = [];
+        
+        // BATTLE ROYALE ELIMINATION ROUNDS
+        const QUESTIONS = [
+            { text: "Round 1: Resistors of 3Ω and 4Ω are in series. What is the total resistance? (Ω)", answer: 7 },
+            { text: "Round 2: What is the voltage across a 3Ω resistor with 2A of current flowing through it? (V)", answer: 6 },
+            { text: "Round 3: A circuit has V = 10V and I = 2A. What is the resistance R? (Ω)", answer: 5 },
+            { text: "Round 4: Two 8Ω resistors are connected in parallel. What is the equivalent resistance? (Ω)", answer: 4 },
+            { text: "Round 5 (SEMI-FINAL): Three 9Ω resistors are connected in parallel. What is the equivalent resistance? (Ω)", answer: 3 },
+            { text: "Round 6 (FINALE): Two 4Ω resistors are in parallel. What is the equivalent resistance? (Ω)", answer: 2 }
+        ];
+
+        // --- SECRET HOST TOGGLE ---
+        document.addEventListener('keydown', (e) => {
+            if (e.shiftKey && e.key.toLowerCase() === 'h') {
+                isHost = !isHost;
+                if (isHost) {
+                    hostControls.classList.remove('hidden');
+                } else {
+                    hostControls.classList.add('hidden');
+                }
+                renderPlayers(); // Re-render lobby list to show/hide kick buttons
+            }
+        });
+
+        // Initialize App
+        function initFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                
+                elStatus.innerText = "NETWORK SECURED";
+                elStatus.classList.replace('text-neon-yellow', 'text-neon-green');
+                elStatus.classList.remove('animate-pulse');
+                setTimeout(() => elStatus.style.opacity = '0.5', 2000);
+
+            } catch (error) {
+                console.error("Firebase Error:", error);
+                elStatus.innerText = "CONNECTION FAILED";
+                elStatus.classList.replace('text-neon-yellow', 'text-neon-red');
+            }
+        }
+
+        function showView(viewName) {
+            Object.values(views).forEach(v => v.classList.remove('active'));
+            views[viewName].classList.add('active');
+            if(viewName === 'timer') {
+                views.timer.classList.remove('fade-enter-active');
+                void views.timer.offsetWidth; 
+                views.timer.classList.add('fade-enter-active');
+            }
+        }
+
+        function showError(element, msg) {
+            element.innerText = msg;
+            element.style.opacity = '1';
+            setTimeout(() => element.style.opacity = '0', 3000);
+        }
+
+        // --- JOIN & LOBBY LOGIC ---
+        btnJoin.addEventListener('click', async () => {
+            const name = inputPlayerName.value.trim().toUpperCase();
+            if (!name) {
+                showError(joinError, "NAME REQUIRED");
+                return;
+            }
+            playerName = name;
+            displayPlayerName.innerText = playerName;
+            
+            btnJoin.innerText = "CONNECTING...";
+            btnJoin.disabled = true;
+
+            try {
+                // Add player to the lobby collection
+                await setDoc(doc(db, 'scrambleGame_players', playerName), {
+                    name: playerName,
+                    joinedAt: Date.now()
+                });
+                
+                listenToGameState();
+                listenToPlayers();
+            } catch(err) {
+                console.error("Failed to join database", err);
+                showError(joinError, "DB ERROR");
+                btnJoin.innerText = "Join Network";
+                btnJoin.disabled = false;
+            }
+        });
+
+        function renderPlayers() {
+            elPlayerList.innerHTML = '';
+            elPlayerCount.innerText = activePlayers.length;
+            
+            let playerStillExists = false;
+            
+            activePlayers.forEach(p => {
+                if (p.name === playerName) playerStillExists = true;
+                
+                const pDiv = document.createElement('div');
+                pDiv.className = "bg-gray-800/80 border border-gray-600 px-4 py-2 rounded text-white font-orbitron text-sm md:text-base flex items-center gap-2 transition-all";
+                if(p.name === playerName) pDiv.classList.add('border-neon-cyan', 'text-neon-cyan', 'shadow-[0_0_10px_rgba(0,243,255,0.3)]'); 
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.innerText = p.name;
+                pDiv.appendChild(nameSpan);
+                
+                // Add Delete Button if user is Host
+                if (isHost) {
+                    const delBtn = document.createElement('button');
+                    delBtn.innerHTML = '&times;';
+                    delBtn.className = "text-neon-red hover:text-white font-bold ml-3 text-xl leading-none cursor-pointer p-1";
+                    delBtn.onclick = () => kickPlayer(p.name);
+                    pDiv.appendChild(delBtn);
+                    pDiv.classList.add('border-neon-red/30'); 
+                }
+                
+                elPlayerList.appendChild(pDiv);
+            });
+            
+            // If the current player's document is gone, boot them out
+            if (playerName && !playerStillExists && activePlayers.length >= 0 && !isHost) {
+                 alert("You have been eliminated from the session!");
+                 window.location.reload();
+            }
+        }
+
+        function listenToPlayers() {
+            if (playersUnsubscribe) return;
+            playersUnsubscribe = onSnapshot(collection(db, 'scrambleGame_players'), (snapshot) => {
+                activePlayers = [];
+                snapshot.forEach(docSnap => activePlayers.push(docSnap.data()));
+                
+                // Sort by who joined first
+                activePlayers.sort((a,b) => a.joinedAt - b.joinedAt);
+                renderPlayers();
+            });
+        }
+
+        // Host Delete Player Function
+        async function kickPlayer(targetName) {
+            if(confirm(`ELIMINATE ${targetName} FROM THE GAME?`)) {
+                try {
+                    await deleteDoc(doc(db, 'scrambleGame_players', targetName));
+                } catch(e) {
+                    console.error("Failed to kick player", e);
+                }
+            }
+        }
+
+        // --- CORE GAME LOGIC ---
+        function getGameStateRef() {
+            return doc(db, 'scrambleGame', 'currentRound');
+        }
+
+        function listenToGameState() {
+            if (!db) return;
+            const stateRef = getGameStateRef();
+            
+            gameUnsubscribe = onSnapshot(stateRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    handleStateUpdate(docSnap.data());
+                } else {
+                    queueRound(0); 
+                }
+            }, (error) => {
+                console.error("Sync Error:", error);
+                elStatus.innerText = "SYNC LOST";
+                elStatus.classList.replace('text-neon-green', 'text-neon-red');
+            });
+        }
+
+        function handleStateUpdate(data) {
+            currentRoundIndex = data.roundIndex !== undefined ? data.roundIndex : 0;
+            if (currentRoundIndex >= QUESTIONS.length) currentRoundIndex = 0;
+            
+            displayRoundNum.innerText = `${currentRoundIndex + 1}/${QUESTIONS.length}`;
+            displayStandbyRound.innerText = `${currentRoundIndex + 1}`;
+            displayQuestion.innerText = QUESTIONS[currentRoundIndex].text;
+
+            if (data.status === 'waiting') {
+                clearInterval(timerInterval);
+                showView('waiting');
+            }
+            else if (data.status === 'playing') {
+                clearInterval(timerInterval);
+                inputAnswer.value = '';
+                elTimesUp.classList.add('hidden');
+                elTimer.classList.remove('hidden', 'text-neon-red', 'text-neon-yellow', 'timer-danger', 'text-glow-red', 'text-glow-cyan');
+                elTimer.classList.add('text-neon-green', 'text-glow-green');
+                showView('question');
+            } 
+            else if (data.status === 'resolved') {
+                elSolverName.innerText = data.winner;
+                elAnswerValue.innerText = data.answer;
+                showView('timer');
+                startCountdown(data.resolvedAt || Date.now());
+            }
+        }
+
+        btnSubmit.addEventListener('click', async () => {
+            const val = parseInt(inputAnswer.value);
+            if (isNaN(val) || val < 2 || val > 7) {
+                showError(answerError, "INVALID INPUT (2-7)");
+                return;
+            }
+
+            const correctAnswer = QUESTIONS[currentRoundIndex].answer;
+
+            if (val !== correctAnswer) {
+                showError(answerError, "INCORRECT CALCULATION");
+                inputAnswer.value = '';
+                inputAnswer.focus();
+                return;
+            }
+
+            btnSubmit.disabled = true;
+            btnSubmit.innerText = "TRANSMITTING...";
+            
+            try {
+                const stateRef = getGameStateRef();
+                await setDoc(stateRef, {
+                    status: 'resolved',
+                    winner: playerName,
+                    answer: correctAnswer,
+                    resolvedAt: Date.now(),
+                    roundIndex: currentRoundIndex 
+                });
+            } catch (err) {
+                console.error("Update failed", err);
+                showError(answerError, "NETWORK ERROR");
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.innerText = "TRANSMIT";
+            }
+        });
+
+        function startCountdown(startTime) {
+            clearInterval(timerInterval);
+            const duration = 10000; 
+            
+            timerInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                let timeLeft = (duration - elapsed) / 1000;
+
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    clearInterval(timerInterval);
+                    elTimer.innerText = "0.0";
+                    elTimer.classList.add('hidden');
+                    elTimesUp.classList.remove('hidden');
+                    return;
+                }
+
+                elTimer.innerText = timeLeft.toFixed(1);
+
+                if (timeLeft <= 5.0 && timeLeft > 3.0) {
+                    elTimer.classList.remove('text-neon-green', 'text-glow-green');
+                    elTimer.classList.add('text-neon-yellow', 'text-glow-yellow'); 
+                }
+                if (timeLeft <= 3.0) {
+                    elTimer.classList.remove('text-neon-yellow', 'text-glow-yellow');
+                    elTimer.classList.add('text-neon-red', 'timer-danger', 'text-glow-red');
+                }
+            }, 50);
+        }
+
+        // --- HOST CONTROLS LOGIC ---
+        async function queueRound(index) {
+            try {
+                await setDoc(getGameStateRef(), {
+                    status: 'waiting', 
+                    winner: '',
+                    answer: null,
+                    resolvedAt: null,
+                    roundIndex: index 
+                });
+            } catch (err) {
+                console.error("Queue failed", err);
+            }
+        }
+
+        btnQueueNext.addEventListener('click', () => {
+            let nextIdx = currentRoundIndex + 1;
+            if (nextIdx >= QUESTIONS.length) nextIdx = 0; 
+            queueRound(nextIdx);
+        });
+
+        btnQueuePrev.addEventListener('click', () => {
+            let prevIdx = currentRoundIndex - 1;
+            if (prevIdx < 0) prevIdx = QUESTIONS.length - 1; 
+            queueRound(prevIdx);
+        });
+
+        btnStartRound.addEventListener('click', async () => {
+            try {
+                await setDoc(getGameStateRef(), {
+                    status: 'playing', 
+                    winner: '',
+                    answer: null,
+                    resolvedAt: null,
+                    roundIndex: currentRoundIndex
+                });
+            } catch (err) {
+                console.error("Start failed", err);
+            }
+        });
+
+        inputPlayerName.addEventListener('keypress', (e) => { if (e.key === 'Enter') btnJoin.click(); });
+        inputAnswer.addEventListener('keypress', (e) => { if (e.key === 'Enter') btnSubmit.click(); });
+
+        window.onload = initFirebase;
+    </script>
+</body>
+</html>
