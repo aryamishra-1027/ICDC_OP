@@ -233,7 +233,7 @@
 
         </main>
 
-        <!-- HOST CONTROLS PANEL (Hidden by Default!) -->
+        <!-- HOST CONTROLS PANEL -->
         <div id="host-controls" class="hidden fixed bottom-4 right-4 flex gap-2 z-50 flex-wrap justify-end max-w-full">
             <div class="bg-black/80 px-3 py-2 border border-neon-red text-neon-red font-orbitron text-xs flex items-center rounded mr-2">HOST MODE ACTIVE</div>
             <button id="btn-queue-prev" class="text-gray-600 hover:text-neon-pink transition-colors font-orbitron text-xs md:text-sm cursor-pointer border border-gray-800 bg-black/80 px-3 py-2 rounded">
@@ -318,16 +318,13 @@
             { text: "Round 6 (FINALE): Two 4Ω resistors are in parallel. What is the equivalent resistance? (Ω)", answer: 2 }
         ];
 
-        // --- SECRET HOST TOGGLE ---
+        // --- SECRET HOST TOGGLE (Manual override just in case) ---
         document.addEventListener('keydown', (e) => {
             if (e.shiftKey && e.key.toLowerCase() === 'h') {
                 isHost = !isHost;
-                if (isHost) {
-                    hostControls.classList.remove('hidden');
-                } else {
-                    hostControls.classList.add('hidden');
-                }
-                renderPlayers(); // Re-render lobby list to show/hide kick buttons
+                if (isHost) hostControls.classList.remove('hidden');
+                else hostControls.classList.add('hidden');
+                renderPlayers(); 
             }
         });
 
@@ -341,6 +338,18 @@
                 elStatus.classList.replace('text-neon-yellow', 'text-neon-green');
                 elStatus.classList.remove('animate-pulse');
                 setTimeout(() => elStatus.style.opacity = '0.5', 2000);
+
+                // --- NEW: AUTOMATIC HOST BYPASS ---
+                // If the URL contains "?host=true", instantly skip to the lobby and show controls!
+                if (window.location.href.includes('?host')) {
+                    isHost = true;
+                    playerName = "MAINFRAME_HOST"; // Host doesn't need to join the database
+                    hostControls.classList.remove('hidden');
+                    
+                    // Start listening to the game, which automatically switches the screen to the Lobby!
+                    listenToGameState();
+                    listenToPlayers();
+                }
 
             } catch (error) {
                 console.error("Firebase Error:", error);
@@ -379,7 +388,6 @@
             btnJoin.disabled = true;
 
             try {
-                // Add player to the lobby collection
                 await setDoc(doc(db, 'scrambleGame_players', playerName), {
                     name: playerName,
                     joinedAt: Date.now()
@@ -389,7 +397,7 @@
                 listenToPlayers();
             } catch(err) {
                 console.error("Failed to join database", err);
-                showError(joinError, "DB ERROR");
+                showError(joinError, "DB ERROR - CHECK FIREBASE RULES");
                 btnJoin.innerText = "Join Network";
                 btnJoin.disabled = false;
             }
@@ -408,11 +416,6 @@
                 pDiv.className = "bg-gray-800/80 border border-gray-600 px-4 py-2 rounded text-white font-orbitron text-sm md:text-base flex items-center gap-2 transition-all";
                 if(p.name === playerName) pDiv.classList.add('border-neon-cyan', 'text-neon-cyan', 'shadow-[0_0_10px_rgba(0,243,255,0.3)]'); 
                 
-                const nameSpan = document.createElement('span');
-                nameSpan.innerText = p.name;
-                pDiv.appendChild(nameSpan);
-                
-                // Add Delete Button if user is Host
                 if (isHost) {
                     const delBtn = document.createElement('button');
                     delBtn.innerHTML = '&times;';
@@ -425,8 +428,8 @@
                 elPlayerList.appendChild(pDiv);
             });
             
-            // If the current player's document is gone, boot them out
-            if (playerName && !playerStillExists && activePlayers.length >= 0 && !isHost) {
+            // Boot out the player if the host deleted them, BUT ignore the host themselves
+            if (playerName && playerName !== "MAINFRAME_HOST" && !playerStillExists && activePlayers.length >= 0 && !isHost) {
                  alert("You have been eliminated from the session!");
                  window.location.reload();
             }
@@ -437,14 +440,11 @@
             playersUnsubscribe = onSnapshot(collection(db, 'scrambleGame_players'), (snapshot) => {
                 activePlayers = [];
                 snapshot.forEach(docSnap => activePlayers.push(docSnap.data()));
-                
-                // Sort by who joined first
                 activePlayers.sort((a,b) => a.joinedAt - b.joinedAt);
                 renderPlayers();
             });
         }
 
-        // Host Delete Player Function
         async function kickPlayer(targetName) {
             if(confirm(`ELIMINATE ${targetName} FROM THE GAME?`)) {
                 try {
